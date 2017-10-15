@@ -44,9 +44,9 @@ read=read+flattens_
 #the analysis
 
 counter=1
-saveName=outFolder_+"/preprocessed_files.root"
-if os.path.exists(saveName):
-	os.remove(saveName)
+#saveName=outFolder_+"/preprocessed_files.root"
+#if os.path.exists(saveName):
+#	os.remove(saveName)
 for file in content:
 	df = root_pandas.read_root(file,'deepntuplizer/tree',columns=read)
 
@@ -55,9 +55,9 @@ for file in content:
 	df = df[(df.isPhysG == 1)|(df.isPhysUD == 1)]
 	df = df[(np.abs(df.jet_eta) < 1.3)]
 	df = flattencolumns(df,flattens_,num_pfCands)
-#	saveName=outFolder_+"/preprocessed_"+file.rsplit('/',1)[-1]
+	saveName=outFolder_+"/preprocessed_"+file.rsplit('/',1)[-1]
 
-	df.to_root(saveName,key='tree',mode='a')
+	df.to_root(saveName,key='tree')
 	print("Processed: "+str(counter)+"/"+str(len(content)))
 	counter=counter+1
 
