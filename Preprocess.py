@@ -30,7 +30,6 @@ content = [x.strip() for x in content]
 #Contains list of filepaths
 content = [path_ + s for s in content]
 
-content=content[0:1]
 #Function to flatten columns that contain lists as entries (for example Cpfcan_pt)
 def flattencolumns(df1, cols,len):
 	df = pd.concat([pd.DataFrame(df1[x].values.tolist()).add_prefix(x).iloc[:,:len] for x in cols], axis=1)
