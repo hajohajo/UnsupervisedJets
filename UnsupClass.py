@@ -92,16 +92,29 @@ df = root_pandas.read_root(listOfFiles,'tree')
 #gluons = df[(df.isPhysG == 1)]
 #quarks = df[(df.isPhysUD == 1)]
 
-targets = np.array(df.apply(lambda row: 1 if row.isPhysG == 1 else 0,axis=1))
-df.drop(['isPhysG','isPhysUD'],axis=1,inplace=True)
+df['target'] = (df['isPhysG']==1)
+df=df.drop(['isPhysG','isPhysUD'],axis=1)
 
-train_x = df.sample(frac=0.9,random_state=7)
-train_y = targets[train_x.index]
-test_x = df.drop(train_x.index)
-test_y = targets[test_x.index]
+from sklearn.model_selection import train_test_split
+train_x, test_x = train_test_split(df,test_size=0.1,random_state=7)
 
-train_x = np.array(train_x.iloc[:])
-test_x = np.array(test_x.iloc[:])
+train_y=train_x['target']
+test_y=test_x['target']
+train_x=train_x.drop('target',axis=1)
+test_x=test_x.drop('target',axis=1)
+
+print train_x.columns.values
+print test_x.columns.values
+
+train_x=train_x.as_matrix()
+test_x=test_x.as_matrix()
+train_y=train_y.as_matrix()
+test_y=test_y.as_matrix()
+
+print train_x.shape
+print test_x.shape
+print train_y.shape
+print test_y.shape
 
 
 from keras.models import Model
@@ -119,19 +132,19 @@ with open("Losses_"+loss_+".txt","a") as myfile:
         myfile.write(list_columns(df.columns.values,cols=4))
 
 #Defining the network topology
-dropoutRate=0.1
+dropoutRate=0.04
 a_inp = Input(shape=(train_x.shape[1],),name='ins')
 
-a = Dense(500,activation='relu', kernel_initializer='normal')(a_inp)
+a = Dense(300,activation='relu', kernel_initializer='normal')(a_inp)
 #a = BatchNormalization()(a_inp)
 a = Dropout(dropoutRate)(a)
-a = Dense(250,activation='relu', kernel_initializer='normal')(a)
+a = Dense(200,activation='relu', kernel_initializer='normal')(a)
 #a = BatchNormalization()(a)
 a = Dropout(dropoutRate)(a)
-a = Dense(120,activation='relu', kernel_initializer='normal')(a)
+a = Dense(100,activation='relu', kernel_initializer='normal')(a)
 #a = BatchNormalization()(a)
 a = Dropout(dropoutRate)(a)
-a = Dense(20,activation='relu', kernel_initializer='normal')(a)
+a = Dense(10,activation='relu', kernel_initializer='normal')(a)
 #a = BatchNormalization()(a)
 a_out = Dense(1, activation='sigmoid', kernel_initializer='normal',name='outs')(a)
 
