@@ -30,11 +30,15 @@ content = [x.strip() for x in content]
 #Contains list of filepaths
 content = [path_ + s for s in content]
 
+content=content[0:1]
 #Function to flatten columns that contain lists as entries (for example Cpfcan_pt)
 def flattencolumns(df1, cols,len):
 	df = pd.concat([pd.DataFrame(df1[x].values.tolist()).add_prefix(x).iloc[:,:len] for x in cols], axis=1)
 	df.fillna(0.0,inplace=True)
-	return pd.concat([df, df1.drop(cols, axis=1)], axis=1)
+	df1.drop(cols, axis=1,inplace=True)
+	df.reset_index(drop=True, inplace=True)
+	df1.reset_index(drop=True, inplace=True)
+	return pd.concat([df, df1], axis=1)
 
 read=['QG_ptD','QG_axis2','QG_mult','Cpfcan_pt','jet_eta','isPhysG','isPhysUD']
 flattens_=['Cpfcan_pt','Cpfcan_eta','Cpfcan_phi','Npfcan_pt','Npfcan_eta','Npfcan_phi']
@@ -49,7 +53,6 @@ counter=1
 #	os.remove(saveName)
 for file in content:
 	df = root_pandas.read_root(file,'deepntuplizer/tree',columns=read)
-
 	#Skimming conditions! Check that these match what you want to include in your analysis
 	num_pfCands=10
 	df = df[(df.isPhysG == 1)|(df.isPhysUD == 1)]
