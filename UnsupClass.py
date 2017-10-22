@@ -20,9 +20,14 @@ import glob
 import math
 from sklearn.metrics import roc_auc_score
 
-loss_ = 'mean_squared_error'
+loss_ = 'binary_crossentropy'
 
 #/////////////////TO BE MOVED INTO SEPARATE FILE FOR CLARITY
+#Custom loss for weakly supervised learning
+def weakSquaredLoss(y_true,y_pred):
+	return K.mean(K.abs(y_pred - y_true))
+
+
 #ROC value to be printed out after epochs. Does not affect training
 class ROC_value(keras.callbacks.Callback):
         def on_epoch_end(self, batch,logs={}):
@@ -42,8 +47,8 @@ class LossHistory(keras.callbacks.Callback):
 
     def on_epoch_end(self, batch, logs={}):
 
-        string = str(round(logs.get('loss'),4))+"\t"+str(round(logs.get('val_loss'),4))+"\t"+str(round(logs.get('acc'),4))+"\t"+str(round(logs.get('val_acc'),4))+"\t"+str(round(roc_auc_score(test_y,self.model.predict(test_x)),3))+"\n"
-
+        string = str(round(logs.get('loss'),4))+"\t"+str(round(logs.get('val_loss'),4))+"\n"
+#	string = str(round(logs.get('loss'),4))+"\t"+str(round(logs.get('val_loss'),4))+"\t"+str(round(logs.get('acc'),4))+"\t"+str(round(logs.get('val_acc'),4))+"\t"+str(round(roc_auc_score(test_y,self.model.predict(test_x)),3))+"\n"
         with open("Losses_"+loss_+".txt","a") as myfile:
                 myfile.write(string)
 
@@ -87,35 +92,61 @@ def list_columns(obj, cols=4, columnwise=True, gap=4):
 
 listOfFiles=glob.glob("/work/hajohajo/UnsupervisedJets/preprocessed_roots/*.root")
 
-
-df = root_pandas.read_root(listOfFiles,'tree')
-#gluons = df[(df.isPhysG == 1)]
-#quarks = df[(df.isPhysUD == 1)]
-
+#read=['QG_ptD','QG_axis2','QG_mult','jet_eta','isPhysG','isPhysUD']
+df = root_pandas.read_root(listOfFiles[0:500],'tree') #,columns=read)
 df['target'] = (df['isPhysG']==1)
-df=df.drop(['isPhysG','isPhysUD'],axis=1)
+df['target'] = df['target'].apply(lambda row: int(row))
+
+gluons = df[(df.isPhysG == 1)]
+quarks = df[(df.isPhysUD == 1)]
+gluons=gluons.drop(['isPhysG','isPhysUD'],axis=1)
+quarks=quarks.drop(['isPhysG','isPhysUD'],axis=1)
+
+#Need to split the events into at least two bags with different fractions. These
+#represent different physical processes where we have a theoretical prediction
+#on the ratio of quark and gluon jets
 
 from sklearn.model_selection import train_test_split
+
+gl1,gl2 = train_test_split(gluons,test_size=0.1,random_state=7)
+gl2,gl3 = train_test_split(gl2,test_size=0.2,random_state=4)
+qu1,qu2 = train_test_split(quarks,test_size=0.9,random_state=42)
+qu2,qu3 = train_test_split(qu2,test_size=0.8,random_state=19)
+
+df1=pd.concat([gl1,qu2],ignore_index=True)
+df2=pd.concat([gl2,qu1],ignore_index=True)
+df3=pd.concat([gl3,qu3],ignore_index=True)
+
+ratio1_ = 1.0*df1[df1['target']==1].shape[0]/df1.shape[0]
+ratio2_ = 1.0*df2[df2['target']==1].shape[0]/df2.shape[0]
+ratio3_ = 1.0*df3[df3['target']==1].shape[0]/df3.shape[0]
+
+print ratio1_
+print ratio2_
+print ratio3_
+
+df1['ratio']=ratio1_
+df2['ratio']=ratio2_
+df3['ratio']=ratio3_
+
+df=pd.concat([df1,df2,df3],ignore_index=True)
+#df=pd.concat([df1,df2],ignore_index=True)
+
 train_x, test_x = train_test_split(df,test_size=0.1,random_state=7)
 
-train_y=train_x['target']
 test_y=test_x['target']
-train_x=train_x.drop('target',axis=1)
-test_x=test_x.drop('target',axis=1)
+train_y=train_x['ratio']
+train_x=train_x.drop(['target','ratio'],axis=1)
+test_x=test_x.drop(['target','ratio'],axis=1)
 
-print train_x.columns.values
-print test_x.columns.values
 
 train_x=train_x.as_matrix()
 test_x=test_x.as_matrix()
 train_y=train_y.as_matrix()
 test_y=test_y.as_matrix()
 
-print train_x.shape
-print test_x.shape
-print train_y.shape
-print test_y.shape
-
+#Ratio of samples
+ratio_ = 1.0*(train_y==1).sum()/len(train_y)
 
 from keras.models import Model
 from keras.layers import Input,Dense,Convolution1D,Flatten,Dropout,Activation
@@ -132,41 +163,49 @@ with open("Losses_"+loss_+".txt","a") as myfile:
         myfile.write(list_columns(df.columns.values,cols=4))
 
 #Defining the network topology
-dropoutRate=0.04
+
+dropoutRate=0.1
 a_inp = Input(shape=(train_x.shape[1],),name='ins')
 
 a = Dense(300,activation='relu', kernel_initializer='normal')(a_inp)
-#a = BatchNormalization()(a_inp)
 a = Dropout(dropoutRate)(a)
 a = Dense(200,activation='relu', kernel_initializer='normal')(a)
-#a = BatchNormalization()(a)
 a = Dropout(dropoutRate)(a)
-a = Dense(100,activation='relu', kernel_initializer='normal')(a)
-#a = BatchNormalization()(a)
+a = Dense(30,activation='relu', kernel_initializer='normal')(a)
 a = Dropout(dropoutRate)(a)
 a = Dense(10,activation='relu', kernel_initializer='normal')(a)
-#a = BatchNormalization()(a)
 a_out = Dense(1, activation='sigmoid', kernel_initializer='normal',name='outs')(a)
 
 model=Model(inputs=a_inp,outputs=a_out)
+"""
+b_inp = Input(shape=(train_x.shape[1],),name='ins')
+b = Dense(30,activation='relu', kernel_initializer='normal')(b_inp)
+b_out = Dense(1, activation='sigmoid', kernel_initializer='normal',name='outs')(b)
+model=Model(inputs=b_inp,outputs=b_out)
+"""
+
 
 from keras import optimizers
-adam=optimizers.Adam() #lr=1.0)
-model.compile(loss=loss_,optimizer=adam,metrics=['acc'])
+adam=optimizers.Adam(lr=10.0)
+#model.compile(loss=loss_,optimizer=adam,metrics=['acc'])
+#loss_ = weakSquaredLoss
+batchS=10000
+print ratio_
+model.compile(loss=loss_,optimizer="Nadam") #,metrics=["acc"]) #['acc'])
 
 
 cb=ROC_value()
 loss=LossHistory()
-check=keras.callbacks.ModelCheckpoint('KERAS_best_model_'+loss_+'.h5',monitor='val_loss',save_best_only=True)
-class_weight = class_weight.compute_class_weight('balanced', np.unique(train_y[:]),train_y[:])
+#check=keras.callbacks.ModelCheckpoint('KERAS_best_model_'+loss_+'.h5',monitor='val_loss',save_best_only=True)
+class_weight = class_weight.compute_class_weight('balanced', np.unique(train_y),train_y[:])
 #class_weight = class_weight.compute_class_weight('balanced',np.unique(algos),algos[:])
-Nepoch=100
-batchS=512
+Nepoch=50
 model.fit(train_x,train_y,
         epochs=Nepoch,
         batch_size=batchS,
         class_weight=class_weight,
-        callbacks=[cb,loss,check],
+        callbacks=[cb,loss],
+#	callbacks=[cb],
         validation_split=0.1,
         shuffle=True)
 

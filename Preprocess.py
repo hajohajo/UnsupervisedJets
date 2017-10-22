@@ -29,6 +29,7 @@ content = [x.strip() for x in content]
 
 #Contains list of filepaths
 content = [path_ + s for s in content]
+content = ['OpenDataTree_mc.root']
 
 #Function to flatten columns that contain lists as entries (for example Cpfcan_pt)
 def flattencolumns(df1, cols,len):
@@ -39,7 +40,7 @@ def flattencolumns(df1, cols,len):
 	df1.reset_index(drop=True, inplace=True)
 	return pd.concat([df, df1], axis=1)
 
-read=['QG_ptD','QG_axis2','QG_mult','Cpfcan_pt','jet_eta','isPhysG','isPhysUD']
+read=['QG_ptD','QG_axis2','QG_mult','jet_eta','isPhysG','isPhysUD']
 flattens_=['Cpfcan_pt','Cpfcan_eta','Cpfcan_phi','Npfcan_pt','Npfcan_eta','Npfcan_phi']
 read=read+flattens_
 
@@ -57,8 +58,8 @@ for file in content:
 	df = df[(df.isPhysG == 1)|(df.isPhysUD == 1)]
 	df = df[(np.abs(df.jet_eta) < 1.3)]
 	df = flattencolumns(df,flattens_,num_pfCands)
-	saveName=outFolder_+"/preprocessed_"+file.rsplit('/',1)[-1]
 
+	saveName=outFolder_+"/preprocessed_"+file.rsplit('/',1)[-1]
 	df.to_root(saveName,key='tree')
 	print("Processed: "+str(counter)+"/"+str(len(content)))
 	counter=counter+1
